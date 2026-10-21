@@ -1,0 +1,74 @@
+{
+  "_meta": {
+    "simulated": true,
+    "device_name": "Galaxy A15",
+    "source": "docs/specs/FASE0.md",
+    "measured_phase": "FASE0",
+    "measured_date": "2026-10-20",
+    "warning": "DADOS SIMULADOS DE DISPOSITIVO PARA TESTES DE COMPATIBILIDADE - NÃO CONSTITUI PROVA FÍSICA NO APARELHO"
+  },
+  "device": {
+    "model": "SM-A156B",
+    "brand": "Samsung",
+    "android_version": 16,
+    "sdk": 36,
+    "arch": "aarch64",
+    "cores": 8,
+    "ram_total_kb": 3841248,
+    "ram_available_kb": 972800,
+    "storage_free_gb": 73,
+    "storage_total_gb": 105
+  },
+  "environment": {
+    "is_termux": true,
+    "termux_version": "0.118.1",
+    "has_python": false,
+    "has_termux_api": true,
+    "has_openssl": false
+  },
+  "commands": {
+    "git": {
+      "path": "/data/data/com.termux/files/usr/bin/git",
+      "version_output": "git version 2.51.0",
+      "exit_code": 0
+    },
+    "ssh": {
+      "path": "/data/data/com.termux/files/usr/bin/ssh",
+      "version_output": "OpenSSH_10.6p1, OpenSSL 3.4.0",
+      "exit_code": 0
+    },
+    "curl": {
+      "path": "/data/data/com.termux/files/usr/bin/curl",
+      "version_output": "curl 8.11.0 (aarch64-unknown-linux-android)",
+      "exit_code": 0
+    },
+    "python": null,
+    "python3": null,
+    "openssl": null,
+    "termux-battery-status": {
+      "path": "/data/data/com.termux/files/usr/bin/termux-battery-status",
+      "stdout": "{\"percentage\": 100, \"temperature\": 29.0, \"plugged\": \"PLUGGED_USB\", \"status\": \"CHARGING\", \"health\": \"GOOD\"}",
+      "exit_code": 0
+    }
+  },
+  "files": {
+    "/proc/loadavg": {
+      "accessible": false,
+      "error": "PermissionError",
+      "errno": 13,
+      "message": "Permission denied"
+    },
+    "/proc/meminfo": {
+      "accessible": true,
+      "content": "MemTotal:        3841248 kB\nMemFree:          210000 kB\nMemAvailable:     972800 kB\nBuffers:           10000 kB\n"
+    }
+  },
+  "expected_capabilities": {
+    "proc.loadavg": "UNSUPPORTED",
+    "proc.meminfo": "SUPPORTED",
+    "command.git": "SUPPORTED",
+    "command.ssh": "SUPPORTED",
+    "command.curl": "SUPPORTED",
+    "battery.read": "SUPPORTED"
+  }
+}
