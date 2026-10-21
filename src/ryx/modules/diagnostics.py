@@ -9,13 +9,13 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from ryx import __version__
+from ryx import __version__, capabilities
 from ryx.modules import FAIL, OK, WARN, Check, report, worst
 from ryx.registry import Context, ModuleSpec
 from ryx.state import StateError, load_state
 
 SPEC = ModuleSpec("diagnostics", "doctor e info: verifica o ambiente sem alterar nada")
-MIN_PYTHON = (3, 11)
+MIN_PYTHON = capabilities.MIN_PYTHON
 DISK_FAIL_MB = 100
 DISK_WARN_MB = 500
 MEM_WARN_MB = 200
@@ -99,7 +99,13 @@ def _doctor(ctx: Context, args: argparse.Namespace) -> int:
     checks = run_checks(ctx)
     result = worst(checks)
     if args.json:
-        payload = {"status": result, "checks": [c.__dict__ for c in checks]}
+        found = capabilities.collect(ctx.platform.is_termux)
+        now = capabilities.utcnow()
+        payload = {
+            "status": result,
+            "checks": [c.__dict__ for c in checks],
+            "capabilities": [cap.as_dict(now) for cap in found],
+        }
         ctx.out(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         code = report(ctx, checks)
