@@ -112,7 +112,11 @@ def _targets(ctx: Context, only: str | None) -> list[tuple[str, Path]]:
 
 def _read(path: Path) -> str:
     try:
-        return path.read_text(encoding="utf-8", newline="") if path.exists() else ""
+        if not path.exists():
+            return ""
+        # Path.read_text(newline=) só existe a partir do Python 3.13; o ryx aceita 3.11
+        with path.open(encoding="utf-8", newline="") as handle:
+            return handle.read()
     except UnicodeDecodeError as exc:
         raise UserError(f"{path}: não está em UTF-8 ({exc.reason}); não vou mexer nele") from exc
     except OSError as exc:
