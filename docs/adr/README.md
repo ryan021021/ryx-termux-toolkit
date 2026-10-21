@@ -11,3 +11,4 @@ Mudar uma decisão aceita exige ADR nova que aponte a antiga.
 | [0004](0004-transporte-do-mesh.md) | Transporte e identidade do mesh pelo OpenSSH | PROPOSTA |
 | [0005](0005-nome-provisorio.md) | Nome provisório, pacote continua `ryx` | ACEITA |
 | [0006](0006-nome-de-trabalho-cephalomesh.md) | Nome de trabalho: cephalomesh | ACEITA |
+| [0007](0007-catalogo-de-apps.md) | Catálogo de apps: manifesto por app, recusa por padrão | PROPOSTA |
