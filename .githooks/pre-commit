@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+# Pré-commit do ryx: recusa o commit se um .py do índice falhar no `ruff check` ou no `ruff format --check`.
+# Ativar uma vez por clone: sh scripts/instalar-ganchos.sh
+exec sh "$(dirname "$0")/../scripts/lint.sh" --indice
