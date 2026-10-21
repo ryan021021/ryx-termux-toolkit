@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 REDACTED = "[REDACTED]"
@@ -49,6 +51,32 @@ class RedactingFormatter(logging.Formatter):
         return redact(super().format(record))
 
 
+class JsonRedactingFormatter(logging.Formatter):
+    """Formata cada evento de log como uma linha JSON com máscara de segredos."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        record_msg = record.getMessage()
+        if record.exc_info and not record.exc_text:
+            record.exc_text = self.formatException(record.exc_info)
+        if record.exc_text:
+            record_msg = f"{record_msg}\n{record.exc_text}"
+        if record.stack_info:
+            record_msg = f"{record_msg}\n{self.formatStack(record.stack_info)}"
+
+        msg = redact(record_msg)
+        time_iso = datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat()
+
+        payload = {
+            "timestamp": time_iso,
+            "time": time_iso,
+            "level": record.levelname,
+            "module": record.name,
+            "message": msg,
+        }
+        return json.dumps(payload, ensure_ascii=False)
+
+
+
 def _open_private_log(log_file: Path) -> logging.FileHandler:
     """Abre o log com modo 0600 (cria assim e fecha um log antigo aberto demais)."""
     log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -57,14 +85,26 @@ def _open_private_log(log_file: Path) -> logging.FileHandler:
     return logging.FileHandler(log_file, encoding="utf-8")
 
 
-def get_logger(level: str = "info", log_file: Path | None = None) -> logging.Logger:
+def get_logger(
+    level: str = "info",
+    log_file: Path | None = None,
+    log_format: str | None = None,
+) -> logging.Logger:
     logger = logging.getLogger("ryx")
     logger.setLevel(getattr(logging, level.upper(), logging.INFO))
     for old in list(logger.handlers):
         logger.removeHandler(old)
         old.close()
     logger.propagate = False
-    formatter = RedactingFormatter("%(asctime)s %(levelname)s %(message)s")
+
+    if log_format is None:
+        log_format = os.environ.get("RYX_LOG_FORMAT", "text")
+
+    if str(log_format).lower() == "json":
+        formatter: logging.Formatter = JsonRedactingFormatter()
+    else:
+        formatter = RedactingFormatter("%(asctime)s %(levelname)s %(message)s")
+
     stream = logging.StreamHandler()
     stream.setFormatter(formatter)
     logger.addHandler(stream)
@@ -77,3 +117,4 @@ def get_logger(level: str = "info", log_file: Path | None = None) -> logging.Log
             handler.setFormatter(formatter)
             logger.addHandler(handler)
     return logger
+

@@ -78,4 +78,5 @@ Arquivo `~/.config/ryx/config.toml` (ou `$RYX_HOME/config/config.toml`). Chaves 
 ```
 
 `modules.toml` na mesma pasta liga/desliga módulos: `[modules]` com `ai = false`, por exemplo.
-Variáveis: `RYX_HOME`, `RYX_RESOURCES`, `RYX_LOG_FILE=1` (grava `ryx.log` em `state/`).
+Variáveis: `RYX_HOME`, `RYX_RESOURCES`, `RYX_LOG_FILE=1` (grava `ryx.log` em `state/`), `RYX_LOG_FORMAT=json` (log estruturado em JSON com hora, nível, módulo e mensagem mascarada).
+

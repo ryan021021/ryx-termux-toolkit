@@ -1,9 +1,11 @@
+import json
 import logging
+import os
 import tempfile
 import unittest
 from pathlib import Path
 
-from ryx.logger import REDACTED, get_logger, redact
+from ryx.logger import REDACTED, JsonRedactingFormatter, get_logger, redact
 from tests.helpers import IS_WINDOWS
 
 
@@ -140,5 +142,117 @@ class LoggerTest(unittest.TestCase):
         self.assertEqual(get_logger("desconhecido").level, logging.INFO)
 
 
+class JsonLoggerTest(unittest.TestCase):
+    def test_json_formatter_produz_json_valido_por_linha(self):
+        formatter = JsonRedactingFormatter()
+        record = logging.LogRecord("ryx", logging.INFO, "test.py", 10, "mensagem de teste", (), None)
+        output = formatter.format(record)
+        self.assertNotIn("\n", output)
+        data = json.loads(output)
+        self.assertIsInstance(data, dict)
+
+    def test_json_formatter_contem_campos_obrigatorios(self):
+        formatter = JsonRedactingFormatter()
+        record = logging.LogRecord("ryx.backup", logging.WARNING, "backup.py", 42, "falha de backup", (), None)
+        data = json.loads(formatter.format(record))
+        for field in ("time", "level", "module", "message"):
+            self.assertIn(field, data, f"Campo {field} ausente no JSON")
+        self.assertEqual(data["level"], "WARNING")
+        self.assertEqual(data["module"], "ryx.backup")
+        self.assertEqual(data["message"], "falha de backup")
+        self.assertTrue(data["time"].startswith("2026-") or "T" in data["time"])
+
+    def test_json_formatter_mascara_segredos_no_json(self):
+        formatter = JsonRedactingFormatter()
+        record = logging.LogRecord("ryx", logging.INFO, "x.py", 1, "login com password=senha123 e token=xyz999", (), None)
+        raw = formatter.format(record)
+        self.assertNotIn("senha123", raw)
+        self.assertNotIn("xyz999", raw)
+        data = json.loads(raw)
+        self.assertIn(REDACTED, data["message"])
+        self.assertNotIn("senha123", data["message"])
+
+    def test_json_com_excecao_permanece_em_uma_linha(self):
+        formatter = JsonRedactingFormatter()
+        try:
+            raise ValueError("erro com password=vazou")
+        except ValueError:
+            import sys
+            exc_info = sys.exc_info()
+        record = logging.LogRecord("ryx", logging.ERROR, "x.py", 1, "falhou operacao", (), exc_info)
+        raw = formatter.format(record)
+        self.assertNotIn("\n", raw)
+        self.assertNotIn("vazou", raw)
+        data = json.loads(raw)
+        self.assertIn("ValueError", data["message"])
+        self.assertIn(REDACTED, data["message"])
+
+    def test_get_logger_com_parametro_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_file = Path(tmp) / "estruturado.log"
+            logger = get_logger("info", log_file, log_format="json")
+            try:
+                logger.info("evento 1 com token=abc12345")
+                for h in logger.handlers:
+                    h.flush()
+                content = log_file.read_text(encoding="utf-8").strip()
+                self.assertNotIn("abc12345", content)
+                lines = content.splitlines()
+                self.assertEqual(len(lines), 1)
+                data = json.loads(lines[0])
+                self.assertEqual(data["level"], "INFO")
+                self.assertIn(REDACTED, data["message"])
+            finally:
+                for h in list(logger.handlers):
+                    h.close()
+                    logger.removeHandler(h)
+
+
+    def test_get_logger_com_env_ryx_log_format_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_file = Path(tmp) / "env_json.log"
+            old_env = os.environ.get("RYX_LOG_FORMAT")
+            try:
+                os.environ["RYX_LOG_FORMAT"] = "json"
+                logger = get_logger("info", log_file)
+                logger.info("evento via env")
+                for h in logger.handlers:
+                    h.flush()
+                content = log_file.read_text(encoding="utf-8").strip()
+                data = json.loads(content)
+                self.assertEqual(data["message"], "evento via env")
+                self.assertEqual(data["module"], "ryx")
+            finally:
+                if old_env is None:
+                    os.environ.pop("RYX_LOG_FORMAT", None)
+                else:
+                    os.environ["RYX_LOG_FORMAT"] = old_env
+                for h in list(logger.handlers):
+                    h.close()
+                    logger.removeHandler(h)
+
+    def test_formato_padrao_preservado_quando_nao_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_file = Path(tmp) / "padrao.log"
+            old_env = os.environ.get("RYX_LOG_FORMAT")
+            try:
+                os.environ.pop("RYX_LOG_FORMAT", None)
+                logger = get_logger("info", log_file)
+                logger.info("evento padrao")
+                for h in logger.handlers:
+                    h.flush()
+                content = log_file.read_text(encoding="utf-8").strip()
+                # Não é JSON: não começa com '{'
+                self.assertFalse(content.startswith("{"))
+                self.assertIn("INFO evento padrao", content)
+            finally:
+                if old_env is not None:
+                    os.environ["RYX_LOG_FORMAT"] = old_env
+                for h in list(logger.handlers):
+                    h.close()
+                    logger.removeHandler(h)
+
+
 if __name__ == "__main__":
     unittest.main()
+
