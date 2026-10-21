@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -151,7 +152,8 @@ class ShellFlowTest(CliTestCase):
 
     def test_bash_le_o_rc_sem_erro_de_sintaxe(self):
         self.ryx("shell", "install", "--apply")
-        bash = next((p for p in (Path("/bin/bash"), Path("/usr/bin/bash")) if p.exists()), None)
+        # pelo PATH: no Termux o bash fica em $PREFIX/bin, não em /bin
+        bash = shutil.which("bash")
         if bash is None or os.name == "nt":
             self.skipTest("bash indisponível")
         done = subprocess.run(  # noqa: S603
