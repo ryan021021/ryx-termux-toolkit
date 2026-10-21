@@ -125,5 +125,97 @@ class CommandsTest(unittest.TestCase):
         self.assertFalse(self.ctx.paths.backup_dir.exists())
 
 
+class NodeStateAndObservabilityTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.ctx, self.lines = make_ctx(Path(self._tmp.name))
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_node_state_saudavel(self):
+        from datetime import datetime, timezone
+        from ryx.capabilities import Capability, SUPPORTED
+        from ryx.modules import Check, OK
+        now = datetime(2026, 10, 22, 12, 0, 0, tzinfo=timezone.utc)
+        checks = [Check("python", OK, "3.11"), Check("disco", OK, "1000 MB")]
+        caps = [Capability("runtime.python", SUPPORTED, "3.11", now, 3600)]
+        state, sev = diagnostics.determine_node_state(checks, caps, heartbeat_at=now, now=now)
+        self.assertEqual(state, diagnostics.NODE_HEALTHY)
+        self.assertEqual(sev, diagnostics.SEV_INFO)
+
+    def test_heartbeat_velho_vira_unknown_nunca_healthy(self):
+        from datetime import datetime, timedelta, timezone
+        from ryx.capabilities import Capability, SUPPORTED
+        from ryx.modules import Check, OK
+        now = datetime(2026, 10, 22, 12, 0, 0, tzinfo=timezone.utc)
+        old_heartbeat = now - timedelta(seconds=300)  # 5 minutos atrás, ttl padrão 120s
+        checks = [Check("python", OK, "3.11")]
+        caps = [Capability("runtime.python", SUPPORTED, "3.11", now, 3600)]
+        state, sev = diagnostics.determine_node_state(checks, caps, heartbeat_at=old_heartbeat, heartbeat_ttl_s=120, now=now)
+        self.assertNotEqual(state, diagnostics.NODE_HEALTHY)
+        self.assertEqual(state, diagnostics.NODE_UNKNOWN)
+        self.assertEqual(sev, diagnostics.SEV_WARNING)
+
+    def test_capacidade_vencida_vira_unknown_nunca_healthy(self):
+        from datetime import datetime, timedelta, timezone
+        from ryx.capabilities import Capability, SUPPORTED
+        from ryx.modules import Check, OK
+        now = datetime(2026, 10, 22, 12, 0, 0, tzinfo=timezone.utc)
+        stale_time = now - timedelta(seconds=70)  # bateria com ttl de 60s
+        checks = [Check("python", OK, "3.11")]
+        caps = [Capability("battery.read", SUPPORTED, "80%", stale_time, 60)]
+        state, sev = diagnostics.determine_node_state(checks, caps, heartbeat_at=now, now=now)
+        self.assertNotEqual(state, diagnostics.NODE_HEALTHY)
+        self.assertEqual(state, diagnostics.NODE_UNKNOWN)
+        self.assertEqual(sev, diagnostics.SEV_WARNING)
+
+    def test_node_offline_e_blocked(self):
+        from datetime import datetime, timezone
+        from ryx.modules import Check, FAIL, OK
+        now = datetime(2026, 10, 22, 12, 0, 0, tzinfo=timezone.utc)
+        checks_ok = [Check("python", OK, "3.11")]
+        # offline
+        state, sev = diagnostics.determine_node_state(checks_ok, offline=True, now=now)
+        self.assertEqual(state, diagnostics.NODE_OFFLINE)
+        self.assertEqual(sev, diagnostics.SEV_ERROR)
+
+        # blocked (falha crítica de check)
+        checks_fail = [Check("config", FAIL, "corrompida")]
+        state_blocked, sev_blocked = diagnostics.determine_node_state(checks_fail, offline=False, now=now)
+        self.assertEqual(state_blocked, diagnostics.NODE_BLOCKED)
+        self.assertEqual(sev_blocked, diagnostics.SEV_CRITICAL)
+
+    def test_doctor_json_inclui_node_state_e_severity(self):
+        code = diagnostics.run(Namespace(handler=diagnostics._doctor, json=True), self.ctx)
+        payload = json.loads("\n".join(self.lines))
+        self.assertIn("node_state", payload)
+        self.assertIn("severity", payload)
+        self.assertIn(payload["node_state"], diagnostics.NODE_STATES)
+        self.assertIn(payload["severity"], diagnostics.SEVERITIES)
+
+    def test_doctor_no_color_sem_ansi(self):
+        import os
+        old_env = os.environ.get("NO_COLOR")
+        try:
+            os.environ["NO_COLOR"] = "1"
+            diagnostics.run(Namespace(handler=diagnostics._doctor, json=False), self.ctx)
+            full_text = "\n".join(self.lines)
+            self.assertNotIn("\x1b[", full_text)
+        finally:
+            if old_env is None:
+                os.environ.pop("NO_COLOR", None)
+            else:
+                os.environ["NO_COLOR"] = old_env
+
+    def test_format_narrow_respeita_40_colunas(self):
+        long_line = "Este é um texto longo de diagnóstico de nó que excede largamente quarenta colunas e precisa quebrar suavemente."
+        wrapped = diagnostics.format_narrow(long_line, width=40)
+        self.assertTrue(len(wrapped) > 1)
+        for line in wrapped:
+            self.assertLessEqual(len(line), 40)
+
+
 if __name__ == "__main__":
     unittest.main()
+

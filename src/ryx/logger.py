@@ -11,6 +11,11 @@ from pathlib import Path
 
 REDACTED = "[REDACTED]"
 PRIVATE_FILE = 0o600
+NOTICE_LEVEL = 25
+if not hasattr(logging, "NOTICE"):
+    logging.addLevelName(NOTICE_LEVEL, "NOTICE")
+    setattr(logging, "NOTICE", NOTICE_LEVEL)
+
 _NAMES = r"(?:token|secret|password|passwd|senha|api[_-]?key|access[_-]?key|private[_-]?key|authorization)"
 # Valor: entre aspas (aceita espaço) ou, se não houver aspas fechando, até o próximo espaço.
 _VALUE = r"""(?P<q>["'])(?:(?!(?P=q)).)*(?P=q)|\S+"""

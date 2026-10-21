@@ -4,15 +4,34 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
+import textwrap
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 
 from ryx import __version__, capabilities
 from ryx.modules import FAIL, OK, WARN, Check, report, worst
 from ryx.registry import Context, ModuleSpec
 from ryx.state import StateError, load_state
+
+# Severidades (§22)
+SEV_INFO = "INFO"
+SEV_NOTICE = "NOTICE"
+SEV_WARNING = "WARNING"
+SEV_ERROR = "ERROR"
+SEV_CRITICAL = "CRITICAL"
+SEVERITIES = (SEV_INFO, SEV_NOTICE, SEV_WARNING, SEV_ERROR, SEV_CRITICAL)
+
+# Estados de Nó (§22)
+NODE_HEALTHY = "HEALTHY"
+NODE_DEGRADED = "DEGRADED"
+NODE_OFFLINE = "OFFLINE"
+NODE_BLOCKED = "BLOCKED"
+NODE_UNKNOWN = "UNKNOWN"
+NODE_STATES = (NODE_HEALTHY, NODE_DEGRADED, NODE_OFFLINE, NODE_BLOCKED, NODE_UNKNOWN)
 
 SPEC = ModuleSpec("diagnostics", "doctor e info: verifica o ambiente sem alterar nada")
 MIN_PYTHON = capabilities.MIN_PYTHON
@@ -95,20 +114,84 @@ def run_checks(
     return checks
 
 
+def determine_node_state(
+    checks: list[Check],
+    capabilities_list: list[capabilities.Capability] | None = None,
+    heartbeat_at: datetime | None = None,
+    heartbeat_ttl_s: int = 120,
+    offline: bool = False,
+    now: datetime | None = None,
+) -> tuple[str, str]:
+    """Determina (node_state, severity) conforme v2.1 §22.
+
+    Regra estrita: medida vencida (ttl_s) ou heartbeat vencido NUNCA vira HEALTHY; vira UNKNOWN.
+    """
+    if now is None:
+        now = capabilities.utcnow()
+
+    if offline:
+        return NODE_OFFLINE, SEV_ERROR
+
+    if heartbeat_at is not None:
+        if (now - heartbeat_at).total_seconds() > heartbeat_ttl_s:
+            return NODE_UNKNOWN, SEV_WARNING
+
+    caps = capabilities_list or []
+    if any(cap.is_stale(now) for cap in caps):
+        return NODE_UNKNOWN, SEV_WARNING
+
+    statuses = {c.status for c in checks}
+    if FAIL in statuses:
+        return NODE_BLOCKED, SEV_CRITICAL
+
+    cap_states = {cap.state for cap in caps}
+    if (
+        capabilities.UNSUPPORTED in cap_states
+        or capabilities.NEEDS_CONFIGURATION in cap_states
+        or capabilities.TEMPORARILY_UNAVAILABLE in cap_states
+        or WARN in statuses
+    ):
+        return NODE_DEGRADED, SEV_WARNING if WARN in statuses else SEV_NOTICE
+
+    return NODE_HEALTHY, SEV_INFO
+
+
+def format_narrow(text: str, width: int = 40) -> list[str]:
+    """Quebra linhas preservando indentação e garantindo limite de largura de tela."""
+    lines: list[str] = []
+    for paragraph in text.splitlines():
+        if not paragraph:
+            lines.append("")
+            continue
+        if len(paragraph) <= width:
+            lines.append(paragraph)
+        else:
+            sublines = textwrap.wrap(paragraph, width=width, break_long_words=True, break_on_hyphens=True)
+            lines.extend(sublines if sublines else [""])
+    return lines
+
+
 def _doctor(ctx: Context, args: argparse.Namespace) -> int:
     checks = run_checks(ctx)
     result = worst(checks)
+    found = capabilities.collect(ctx.platform.is_termux)
+    now = capabilities.utcnow()
+    node_state, severity = determine_node_state(checks, found, now=now)
+
     if args.json:
-        found = capabilities.collect(ctx.platform.is_termux)
-        now = capabilities.utcnow()
         payload = {
             "status": result,
+            "node_state": node_state,
+            "severity": severity,
             "checks": [c.__dict__ for c in checks],
             "capabilities": [cap.as_dict(now) for cap in found],
         }
         ctx.out(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         code = report(ctx, checks)
+        state_msg = f"nó: {node_state} (severidade: {severity})"
+        for line in format_narrow(state_msg, width=40):
+            ctx.out(line)
         ctx.out(f"resultado: {result}")
         return code
     return 1 if result == FAIL else 0
