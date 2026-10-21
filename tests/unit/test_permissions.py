@@ -25,6 +25,9 @@ class DecideTest(unittest.TestCase):
     def test_o_motivo_explica_o_que_falta(self):
         self.assertIn("--apply", decide(Risk.REVERSIBLE).reason)
         self.assertIn("--yes", decide(Risk.SENSITIVE, apply=True).reason)
+        self.assertEqual(decide(Risk.READ).reason, "leitura")
+        self.assertEqual(decide(Risk.REVERSIBLE, apply=True).reason, "autorizado")
+        self.assertEqual(decide(Risk.SENSITIVE, apply=True, yes=True).reason, "autorizado")
 
 
 class SafeRelativeTest(unittest.TestCase):
@@ -56,6 +59,32 @@ class InsideTest(unittest.TestCase):
             self.assertTrue(inside(base, base / "a" / "b"))
             self.assertFalse(inside(base, base / ".." / "fora"))
             self.assertFalse(inside(base, Path(tmp) / "outra"))
+            self.assertTrue(inside(base, base))
+
+    def test_symlink_que_aponta_para_fora_retorna_false(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "base"
+            base.mkdir()
+            outside = Path(tmp) / "outside"
+            outside.mkdir()
+            link = base / "link_fora"
+            try:
+                link.symlink_to(outside)
+                self.assertFalse(inside(base, link))
+            except (OSError, NotImplementedError):
+                # Fallback no Windows sem SeCreateSymbolicLinkPrivilege: mock resolve
+                target = base / "falso_link"
+                orig_resolve = Path.resolve
+
+                def fake_resolve(p, *args, **kwargs):
+                    if p == target:
+                        return outside
+                    return orig_resolve(p, *args, **kwargs)
+
+                from unittest import mock
+
+                with mock.patch.object(Path, "resolve", fake_resolve):
+                    self.assertFalse(inside(base, target))
 
 
 if __name__ == "__main__":

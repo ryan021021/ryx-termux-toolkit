@@ -7,6 +7,7 @@ import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from ryx.backup import BackupError, restore_backup, verify_backup
 
@@ -189,6 +190,60 @@ class HostileBackupTest(unittest.TestCase):
                 with self.assertRaisesRegex(BackupError, "caminho recusado"):
                     restore_backup(archive, self.dest)
                 archive.unlink()
+
+    def test_caminho_com_link_no_destino_que_escapa_e_recusado(self):
+        outside = self.root / "outside"
+        outside.mkdir()
+        self.dest.mkdir()
+        link_dir = self.dest / "link_sub"
+        symlink_created = False
+        try:
+            link_dir.symlink_to(outside)
+            symlink_created = True
+        except (OSError, NotImplementedError):
+            pass
+
+        archive = forge(self.root, [entry("link_sub/evil.txt")], {"files/0": b"conteudo"})
+        if symlink_created:
+            with self.assertRaisesRegex(BackupError, "sairia do destino"):
+                restore_backup(archive, self.dest)
+            self.assertFalse((outside / "evil.txt").exists())
+        else:
+            orig_resolve = Path.resolve
+
+            def fake_resolve(p, *args, **kwargs):
+                if p == link_dir / "evil.txt" or p.parent == link_dir:
+                    return outside / "evil.txt"
+                return orig_resolve(p, *args, **kwargs)
+
+            with mock.patch.object(Path, "resolve", fake_resolve):
+                with self.assertRaisesRegex(BackupError, "sairia do destino"):
+                    restore_backup(archive, self.dest)
+
+    def test_membro_com_nome_valido_mas_ausente_no_tar_e_recusado(self):
+        archive = forge(self.root, [entry("home/a", member="files/99")], {"files/0": b"conteudo"})
+        problems = verify_backup(archive)
+        self.assertTrue(any("files/99: ausente ou nome inválido" in p for p in problems), problems)
+        with self.assertRaises(BackupError):
+            restore_backup(archive, self.dest)
+
+    def test_entrada_sem_campo_mode_assume_padrao_0600(self):
+        e = entry("home/sem_modo")
+        del e["mode"]
+        archive = forge(self.root, [e], {"files/0": b"conteudo"})
+        self.assertEqual(verify_backup(archive), [])
+        written = restore_backup(archive, self.dest)
+        self.assertEqual(len(written), 1)
+        self.assertEqual(written[0].read_text(), "conteudo")
+
+    def test_sidecar_com_erro_de_leitura_oserror_vira_problema(self):
+        archive = forge(self.root, [entry("home/a")], {"files/0": b"conteudo"})
+        sidecar = archive.with_name(archive.name + ".sha256")
+        with mock.patch.object(Path, "read_text", side_effect=OSError("permissão negada")):
+            problems = verify_backup(archive)
+            self.assertTrue(any("arquivo .sha256 ilegível: permissão negada" in p for p in problems), problems)
+            with self.assertRaises(BackupError):
+                restore_backup(archive, self.dest)
 
 
 if __name__ == "__main__":

@@ -268,6 +268,52 @@ class BackupTest(unittest.TestCase):
         restored = restore_backup(archive, self.root / "out")
         self.assertEqual(restored[0].read_text(), "estranho")
 
+    def test_backup_de_arquivo_fora_do_home_usa_prefixo_abs(self):
+        ext = write(self.root / "externo" / "cfg.txt", "dados_externos")
+        result = create_backup(self.paths, [ext], NOW)
+        self.assertEqual(result.files, 1)
+        with tarfile.open(result.archive) as tar:
+            manifest = json.loads(tar.extractfile("manifest.json").read())
+        rel = manifest["files"][0]["rel"]
+        self.assertTrue(rel.startswith("abs/"), f"esperava prefixo abs/: {rel}")
+        dest = self.root / "out_abs"
+        written = restore_backup(result.archive, dest)
+        self.assertEqual(len(written), 1)
+        self.assertEqual(written[0].read_text(), "dados_externos")
+
+    def test_cria_backup_sem_passar_now_usa_data_atual(self):
+        result = create_backup(self.paths, [self.a])
+        self.assertEqual(result.files, 1)
+        self.assertTrue(result.archive.is_file())
+        self.assertEqual(verify_backup(result.archive), [])
+        today_stamp = datetime.now().strftime("%Y%m%d")
+        self.assertIn(today_stamp, result.archive.name)
+
+    def test_falha_na_escrita_da_restauracao_limpa_arquivos_temporarios(self):
+        archive = create_backup(self.paths, [self.a], NOW).archive
+        dest = self.root / "out_fail"
+        with mock.patch("os.replace", side_effect=OSError("erro simulado ao mover")):
+            with self.assertRaises(OSError):
+                restore_backup(archive, dest)
+        if dest.exists():
+            restores = list(dest.rglob(".restore-*"))
+            self.assertEqual(restores, [], f"temporários de restauração não foram limpos: {restores}")
+
+    def test_prune_com_keep_zero_remove_todos_os_backups(self):
+        create_backup(self.paths, [self.a], datetime(2026, 1, 1))
+        create_backup(self.paths, [self.a], datetime(2026, 1, 2))
+        removed = prune_backups(self.paths, keep=0)
+        self.assertEqual(len(removed), 2)
+        self.assertEqual(list_backups(self.paths), [])
+
+    @unittest.skipIf(IS_WINDOWS, "permissões POSIX de modo")
+    def test_restauracao_aplica_modo_do_manifesto(self):
+        archive = create_backup(self.paths, [self.a], NOW).archive
+        dest = self.root / "out_mode"
+        restore_backup(archive, dest)
+        restored = dest / "home" / "dir" / "a.txt"
+        self.assertEqual(restored.stat().st_mode & 0o777, self.a.stat().st_mode & 0o777)
+
 
 if __name__ == "__main__":
     unittest.main()
