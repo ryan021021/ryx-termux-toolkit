@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 240" width="640" height="240" role="img" aria-label="Exemplo de ryx doctor">
+  <rect width="640" height="240" rx="12" fill="#0b1220"/>
+  <circle cx="22" cy="20" r="6" fill="#ef4444"/><circle cx="42" cy="20" r="6" fill="#f59e0b"/><circle cx="62" cy="20" r="6" fill="#22c55e"/>
+  <g font-family="ui-monospace, Menlo, Consolas, monospace" font-size="15">
+    <text x="24" y="62" fill="#22c55e">$ <tspan fill="#e2e8f0">ryx doctor</tspan></text>
+    <text x="24" y="92" fill="#22c55e">[ok]    <tspan fill="#cbd5e1">python: 3.12</tspan></text>
+    <text x="24" y="116" fill="#22c55e">[ok]    <tspan fill="#cbd5e1">ambiente: Termux</tspan></text>
+    <text x="24" y="140" fill="#22c55e">[ok]    <tspan fill="#cbd5e1">git: encontrado</tspan></text>
+    <text x="24" y="164" fill="#f59e0b">[aviso] <tspan fill="#cbd5e1">disco: 420 MB livres</tspan></text>
+    <text x="24" y="188" fill="#22c55e">[ok]    <tspan fill="#cbd5e1">config: válida</tspan></text>
+    <text x="24" y="218" fill="#94a3b8">resultado: aviso (exemplo ilustrativo)</text>
+  </g>
+</svg>

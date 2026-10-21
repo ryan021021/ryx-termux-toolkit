@@ -1,0 +1,8 @@
+# Liga e desliga módulos. Módulo desligado some da CLI.
+[modules]
+shell = true
+diagnostics = true
+packages = true
+server = true
+automation = true
+ai = true

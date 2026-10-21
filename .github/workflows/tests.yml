@@ -1,0 +1,34 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unittest:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Suíte completa
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          PYTHONIOENCODING: utf-8
+        run: python -m unittest discover -s tests -t . -v
+      - name: Instalação isolada
+        run: |
+          export RYX_HOME="$(mktemp -d)"
+          sh install.sh --dry-run
+          sh install.sh
+          sh scripts/verify-install.sh

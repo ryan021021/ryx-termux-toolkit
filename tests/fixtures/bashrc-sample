@@ -1,0 +1,3 @@
+# bashrc do usuario
+export EDITOR=nano
+alias la="ls -A"

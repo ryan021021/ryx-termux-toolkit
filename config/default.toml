@@ -1,0 +1,22 @@
+# Padrões do ryx. O usuário sobrescreve em <config_dir>/config.toml (ver `ryx info`).
+# Qualquer chave desconhecida é recusada na validação (ver src/ryx/config.py).
+
+[core]
+log_level = "info"
+
+[backup]
+keep = 10
+
+[shell]
+theme = "default"
+rc_files = ["~/.bashrc"]
+
+[packages]
+recommended = ["git", "openssh", "curl", "python", "jq", "nano"]
+
+[server]
+ssh_port = 8022
+services = ["sshd"]
+
+[ai]
+providers = ["claude", "gemini", "codex"]
