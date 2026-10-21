@@ -12,7 +12,7 @@ Tudo aqui foi medido nos comandos da última seção; o que não foi medido est�
 | Git | `main` **sem nenhum commit** (todo o trabalho só existe no disco) |
 | Pacote | `ryx` 0.1.0, `requires-python >=3.11`, só biblioteca padrão |
 | Código | `src/ryx/`: `cli`, `config`, `paths`, `platform`, `permissions`, `backup`, `state`, `logger`, `registry` e 6 módulos (`shell`, `diagnostics`, `packages`, `server`, `automation`, `ai`) |
-| Testes | `tests/unit`, `integration`, `installer`, `security` (~4 980 linhas de Python e shell no total) |
+| Testes | `tests/unit`, `integration`, `installer`, `security` (~5 600 linhas de Python e shell no total em 21/10) |
 | CI | 3 workflows escritos, **nunca rodaram** (sem remoto) |
 | Mesh, pareamento, agendador, inferência | **não existem** (só especificação) |
 
@@ -33,20 +33,20 @@ Lido por ADB e por SSH via `adb forward`, só leitura; a impressão digital da c
 | Bateria | 100 %, USB, 29 °C (`termux-battery-status` funciona) |
 | Termux | 0.118.1, com `com.termux.boot` e `com.termux.api` |
 | Ferramentas | `bash`, `git`, `runit` (`sv`, `runsvdir`), `termux-wake-lock`, `crontab`; **sem `python`**, sem `zsh`, sem `openssl` no PATH |
-| Serviços runit | `agentops`, `alertas`, `crond`, `egress`, `server-box`, `sftp`, `ssh-agent`, `sshd` (do projeto `celular`) |
+| Serviços runit | `agentops`, `alertas`, `crond`, `egress`, `server-box`, `sftp`, `ssh-agent` (parado; existe no A15, não está versionado no `celular`), `sshd` (do projeto `celular`) |
 | `/proc/loadavg` | permissão negada (limite do Android) |
 
 ## 2. Achados por gravidade
 
 | # | Gravidade | Achado | Consequência |
 |---|---|---|---|
-| F1 | ALTA | Repositório sem commit | Sem histórico, sem volta; uma limpeza errada apaga tudo. Commit-base é a T96. |
+| F1 | ALTA | Repositório sem commit | Sem histórico, sem volta; uma limpeza errada apaga tudo. **RESOLVIDO** no commit-base 90ba62e (T96). |
 | F2 | ALTA | Python ausente no Termux do A15 | O ryx **não roda** no único aparelho disponível sem `pkg install python`. Instalar exige consentimento (regra 7). Teste no aparelho: BLOCKED. |
 | F3 | ALTA | Nada foi verificado em aparelho | Toda afirmação de compatibilidade é NÃO VERIFICADO. |
 | F4 | MÉDIA | `/proc/loadavg` negado; CPU e carga não saem por `/proc` | Detector de saúde precisa marcar UNSUPPORTED/UNKNOWN em vez de zero. |
 | F5 | MÉDIA | RAM disponível < 1 GB | Pelo perfil KRAKEN, este aparelho é `worker`, não `inference`; inferência local fica UNKNOWN até medir um modelo. |
 | F6 | MÉDIA | `openssl` ausente | Identidade e TLS do mesh não podem depender do binário `openssl`; ver ADR-0004. |
-| F7 | MÉDIA | sshd do `celular` sem `ListenAddress` nem `PasswordAuthentication` explícitos no `sshd_config` (valor efetivo não lido: `sshd -T` falhou) | Fora do escopo do ryx; reportado ao projeto `celular` (BACK/QA). NÃO VERIFICADO. |
+| F7 | — | **REFUTADO em 21/10.** O `celular` instala `server/termux/sshd-servidor.conf` como `sshd_config.d/10-servidor.conf`. Valor efetivo lido no A15 (`sshd -T`, OpenSSH 10.6p1): `PasswordAuthentication no`, `KbdInteractiveAuthentication no`, `PubkeyAuthentication yes`, `MaxAuthTries 3`, `PerSourcePenalties` ligado, `ListenAddress 0.0.0.0:8022` | Achado original errado: o `sshd -T` da fase 0 rodou sem ler o drop-in. Escutar em todas as interfaces IPv4 é a escolha do `celular` para a rede local; a T114 confere contra o modo pessoal. |
 | F8 | BAIXA | CI nunca rodou | Lint e testes em Linux/macOS sem prova. Depende de remoto (decisão do mantenedor). |
 
 ## 3. Validação do nome "KRAKEN MESH"

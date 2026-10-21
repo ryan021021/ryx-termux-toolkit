@@ -30,12 +30,12 @@ do celular pessoal.
 | T1 | Backup hostil escreve fora do destino (`../`, absoluto, symlink, hardlink) | B2 | `safe_relative`, `inside`, recusa de link na restauração | `tests/security/test_hostile_backup.py` |
 | T2 | Injeção pela CLI (argumento vira comando) | B1, B3 | subprocess só com lista, sem `shell=True` | `tests/security/test_cli_injection.py`, `test_static_scan.py` |
 | T3 | Chave de API vazando em log ou saída | B1, B3 | `logger` mascara, `ai check` nunca mostra a chave | `tests/unit/test_logger.py`, `test_ai.py` |
-| T4 | Bloco do shell estraga o `.bashrc` ou age num symlink | B2 | bloco gerenciado com backup e remoção byte a byte; recusa de symlink e de rc fora do `$HOME` em correção (T96) | `tests/unit/test_shell.py` (symlink: falta) |
+| T4 | Bloco do shell estraga o `.bashrc` ou age num symlink | B2 | bloco gerenciado com backup e remoção byte a byte; **rc que é link é seguido de propósito** (`shell.py:148`, dotfiles): grava no alvo com backup do conteúdo. **Lacuna aberta:** alvo fora do `$HOME` não é recusado | `tests/unit/test_shell.py::test_rc_symlink_grava_no_alvo_e_faz_backup_do_conteudo` (prova que segue o link; não há teste de recusa) |
 | T5 | Simulação que grava (`--apply` ausente e algo muda) | B1 | `decide()` | `tests/integration/test_cli.py` (falta prova por varredura do disco antes/depois) |
 | T6 | `state.json` ou config corrompidos derrubam ou enganam o ryx | B4 | validação de tipos e erro claro | `tests/unit/test_state.py`, `test_config.py` |
 | T7 | Corrida entre conferir e restaurar (TOCTOU) | B2 | — | — (achado aberto, T102) |
 | T8 | Manifesto de backup gigante esgota memória | B2 | — | — (achado aberto, T102) |
-| T9 | Ferramenta externa trava | B3 | `timeout=` obrigatório (checado por AST) | `tests/security/test_static_scan.py` |
+| T9 | Ferramenta externa trava | B3 | `timeout=` obrigatório (checado por AST) | `tests/security/test_static_scan.py::SubprocessTimeoutTest` (desde 90ba62e); mutante que tira o `timeout` do `run_text` reprova (21/10) |
 
 ## Ameaças do mesh (antes de qualquer código)
 
